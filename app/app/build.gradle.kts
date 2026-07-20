@@ -13,8 +13,8 @@ android {
         applicationId = "nu.hyperworks.thorspeak"
         minSdk = 33
         targetSdk = 34
-        versionCode = 3
-        versionName = "0.1.2"
+        versionCode = 4
+        versionName = "0.1.3"
     }
 
     // Consistent signing across machines/CI so in-app updates install over

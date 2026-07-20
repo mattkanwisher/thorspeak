@@ -24,6 +24,7 @@ data class AppSettings(
     val lang: String,
     val cacheMaxMb: Int,
     val pixelOnlyGate: Boolean,
+    val overlayEnabled: Boolean,
     val region: CaptureRegion,
     val voiceJa: String,
     val voiceEn: String,
@@ -45,6 +46,7 @@ class SettingsRepository(private val context: Context) {
         val lang = stringPreferencesKey("lang")
         val cacheMaxMb = intPreferencesKey("cache_max_mb")
         val pixelOnly = booleanPreferencesKey("pixel_only_gate")
+        val overlayEnabled = booleanPreferencesKey("overlay_enabled")
         val regionL = floatPreferencesKey("region_l")
         val regionT = floatPreferencesKey("region_t")
         val regionR = floatPreferencesKey("region_r")
@@ -61,6 +63,7 @@ class SettingsRepository(private val context: Context) {
             lang = p[Keys.lang] ?: "ja",
             cacheMaxMb = p[Keys.cacheMaxMb] ?: 200,
             pixelOnlyGate = p[Keys.pixelOnly] ?: false,
+            overlayEnabled = p[Keys.overlayEnabled] ?: false,
             region = CaptureRegion(
                 p[Keys.regionL] ?: 0f,
                 p[Keys.regionT] ?: 0f,
@@ -80,6 +83,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun setLang(lang: String) = context.dataStore.edit { it[Keys.lang] = lang }
     suspend fun setCacheMaxMb(mb: Int) = context.dataStore.edit { it[Keys.cacheMaxMb] = mb }
     suspend fun setPixelOnlyGate(v: Boolean) = context.dataStore.edit { it[Keys.pixelOnly] = v }
+    suspend fun setOverlayEnabled(v: Boolean) = context.dataStore.edit { it[Keys.overlayEnabled] = v }
     suspend fun setVoice(lang: String, voice: String) = context.dataStore.edit {
         when (lang) {
             "ja" -> it[Keys.voiceJa] = voice

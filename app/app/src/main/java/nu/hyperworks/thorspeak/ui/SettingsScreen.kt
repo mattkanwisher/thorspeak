@@ -26,6 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings as AndroidSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import nu.hyperworks.thorspeak.BuildConfig
@@ -98,6 +101,32 @@ fun SettingsScreen(
             onValueChangeFinished = { scope.launch { repo.setCacheMaxMb(cacheMb.toInt()) } },
             valueRange = 50f..1000f,
         )
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Translation overlay")
+                Text(
+                    "Float the translation over the game text on the top screen",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            val overlayCtx = androidx.compose.ui.platform.LocalContext.current
+            Switch(
+                checked = s.overlayEnabled,
+                onCheckedChange = { v ->
+                    if (v && !AndroidSettings.canDrawOverlays(overlayCtx)) {
+                        overlayCtx.startActivity(
+                            Intent(
+                                AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${overlayCtx.packageName}"),
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                    scope.launch { repo.setOverlayEnabled(v) }
+                },
+            )
+        }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {

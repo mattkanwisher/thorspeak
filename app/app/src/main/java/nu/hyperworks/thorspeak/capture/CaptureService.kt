@@ -39,6 +39,7 @@ class CaptureService : Service() {
     private val gate = FrameGate()
     private val mlKit = MlKitReader()
     private var lastSentGateText: String? = null
+    private var overlay: OverlayController? = null
 
     private val app get() = application as ThorSpeakApp
 
@@ -75,11 +76,27 @@ class CaptureService : Service() {
         while (scope.isActive) {
             val settings = app.settingsRepository.current()
             try {
-                val frame = capturer?.capture()
+                syncOverlayLifecycle(settings.overlayEnabled)
+
+                // The overlay lives on the captured display: blank it around the
+                // grab so we never OCR our own translation.
+                val ov = overlay
+                val frame = if (ov != null && ov.isShowing) {
+                    ov.hideForCapture()
+                    delay(120) // let SurfaceFlinger push an overlay-free frame
+                    try {
+                        capturer?.capture()
+                    } finally {
+                        ov.restore()
+                    }
+                } else {
+                    capturer?.capture()
+                }
+
                 if (frame != null) {
                     SessionState.setFrame(frame)
                     val crop = cropToRegion(frame, settings.region)
-                    processFrame(crop, settings.lang, settings.pixelOnlyGate, settings.serverUrl, settings.voiceFor(settings.lang))
+                    processFrame(crop, settings, frame.width, frame.height)
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "capture loop error", e)
@@ -89,12 +106,20 @@ class CaptureService : Service() {
         }
     }
 
+    private fun syncOverlayLifecycle(enabled: Boolean) {
+        if (enabled && android.provider.Settings.canDrawOverlays(this)) {
+            if (overlay == null) overlay = OverlayController(this)
+        } else {
+            overlay?.destroy()
+            overlay = null
+        }
+    }
+
     private suspend fun processFrame(
         crop: Bitmap,
-        lang: String,
-        pixelOnly: Boolean,
-        serverUrl: String,
-        voice: String?,
+        settings: nu.hyperworks.thorspeak.data.AppSettings,
+        frameW: Int,
+        frameH: Int,
     ) {
         if (!gate.offer(crop)) {
             SessionState.setGateLog("dropped: unchanged/unstable")
@@ -102,10 +127,14 @@ class CaptureService : Service() {
         }
 
         var gateText: String? = null
-        if (!pixelOnly) {
-            gateText = MlKitReader.normalizeLocal(mlKit.read(crop))
+        var gateBox: Rect? = null
+        if (!settings.pixelOnlyGate) {
+            val read = mlKit.read(crop)
+            gateText = MlKitReader.normalizeLocal(read.text)
+            gateBox = read.box
             if (gateText.isBlank()) {
                 SessionState.setGateLog("dropped: ML Kit saw no text")
+                overlay?.clear() // dialogue closed — take the bubble down
                 return
             }
             if (gateText == lastSentGateText) {
@@ -120,11 +149,11 @@ class CaptureService : Service() {
         SessionState.setStatus(SessionStatus.Processing)
         try {
             val jpeg = ByteArrayOutputStream().also { crop.compress(Bitmap.CompressFormat.JPEG, 90, it) }.toByteArray()
-            val api = app.apiClient.api(serverUrl)
+            val api = app.apiClient.api(settings.serverUrl)
             val resp = api.process(
                 ApiClient.jpegPart(jpeg),
-                ApiClient.textPart(lang),
-                voice?.let { ApiClient.textPart(it) },
+                ApiClient.textPart(settings.lang),
+                settings.voiceFor(settings.lang)?.let { ApiClient.textPart(it) },
                 gateText?.let { ApiClient.textPart(it) },
             )
             val dropped = resp.droppedReason
@@ -133,13 +162,15 @@ class CaptureService : Service() {
                 // keep the last real line on screen instead of showing garbage.
                 SessionState.setGateLog("server dropped: $dropped")
                 SessionState.setStatus(SessionStatus.Capturing)
+                overlay?.clear() // whatever is on screen isn't the old dialogue
                 return
             }
             SessionState.setResponse(resp)
+            resp.translation?.let { showOverlay(it, gateBox, settings.region, frameW, frameH) }
             val hash = resp.audioHash
             val url = resp.audioUrl
             if (hash != null && url != null) {
-                val file = app.audioCache.getOrFetch(hash, serverUrl.trimEnd('/') + url)
+                val file = app.audioCache.getOrFetch(hash, settings.serverUrl.trimEnd('/') + url)
                 SessionState.setStatus(SessionStatus.Speaking)
                 app.player.play(file)
             } else {
@@ -149,6 +180,48 @@ class CaptureService : Service() {
             Log.w(TAG, "server processing failed", e)
             SessionState.setStatus(SessionStatus.Error("server: ${e.message}"))
         }
+    }
+
+    /**
+     * Map the ML Kit box (crop coords, half-res) onto physical pixels of the
+     * captured display and park the bubble there; without a box (pixel-only
+     * gate), cover the lower part of the capture region — dialogue lives there.
+     */
+    private suspend fun showOverlay(
+        translation: String,
+        box: Rect?,
+        region: CaptureRegion,
+        frameW: Int,
+        frameH: Int,
+    ) {
+        val ov = overlay ?: return
+        val dm = getSystemService(android.hardware.display.DisplayManager::class.java)
+        val mode = dm.getDisplay(android.view.Display.DEFAULT_DISPLAY).mode
+        val scale = mode.physicalWidth.toFloat() / frameW
+
+        val cropX = region.left * frameW
+        val cropY = region.top * frameH
+        val cropW = (region.right - region.left) * frameW
+        val cropH = (region.bottom - region.top) * frameH
+
+        val x: Float
+        val y: Float
+        val w: Float
+        if (box != null) {
+            x = cropX + box.left
+            y = cropY + box.top
+            w = box.width().toFloat()
+        } else {
+            x = cropX + cropW * 0.05f
+            y = cropY + cropH * 0.65f
+            w = cropW * 0.9f
+        }
+        ov.show(
+            translation,
+            (x * scale).toInt(),
+            (y * scale).toInt(),
+            (w * scale).toInt().coerceAtLeast(mode.physicalWidth / 3),
+        )
     }
 
     private fun cropToRegion(frame: Bitmap, region: CaptureRegion): Bitmap {
@@ -188,6 +261,8 @@ class CaptureService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
+        overlay?.destroy()
+        overlay = null
         capturer?.release()
         capturer = null
         mlKit.close()
