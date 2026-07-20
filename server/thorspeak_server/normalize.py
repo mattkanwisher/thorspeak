@@ -22,3 +22,11 @@ def audio_key(text: str, lang: str, voice: str) -> str:
 
 def text_key(text: str, target_lang: str) -> str:
     return hashlib.sha256(f"{normalize(text)}|{target_lang}".encode()).hexdigest()
+
+
+def has_speakable(text: str) -> bool:
+    """True if TTS has anything to pronounce — letters or digits in any script.
+
+    Game dialogue is often just "……" (a silence beat); edge-tts errors on it.
+    """
+    return any(c.isalnum() for c in text)

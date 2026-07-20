@@ -22,3 +22,15 @@ def test_keys_stable_and_distinct():
 
 def test_text_key_by_lang():
     assert text_key("こんにちは", "en") != text_key("こんにちは", "th")
+
+
+def test_has_speakable():
+    from thorspeak_server.normalize import has_speakable
+
+    assert has_speakable("ゆうしゃよ、まおうをたおしてくれ！")
+    assert has_speakable("Hello!")
+    assert has_speakable("สวัสดี")
+    assert not has_speakable("...")
+    assert not has_speakable("……")
+    assert not has_speakable("!?、。・")
+    assert not has_speakable("")

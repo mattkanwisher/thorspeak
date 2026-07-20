@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from . import __version__
 from .config import LANGS, settings
 from .db import Database
-from .normalize import normalize
+from .normalize import has_speakable, normalize
 from .ocr import ocr
 from . import anki, translate as tr, tts
 from .lookup import LookupResult, lookup
@@ -86,9 +86,11 @@ async def _speak_pipeline(text: str, lang: str, voice: str | None) -> ProcessRes
     """Shared translate-then-synthesize pipeline for /process and /speak."""
     _check_lang(lang)
     norm = normalize(text)
-    if not norm:
+    # "……" is a common silent-dialogue beat in games: nothing to translate
+    # or speak, and edge-tts errors on pronounceable-free input.
+    if not has_speakable(norm):
         return ProcessResponse(
-            text=text, normalized="", lang=lang, translation=None, voice=None,
+            text=text, normalized=norm, lang=lang, translation=None, voice=None,
             audio_hash=None, audio_url=None,
             cached=CachedFlags(translation=False, tts=False),
         )
@@ -100,6 +102,12 @@ async def _speak_pipeline(text: str, lang: str, voice: str | None) -> ProcessRes
         speak_text = translation
 
     voice = voice or settings.voice_for(lang)
+    if not has_speakable(speak_text):
+        return ProcessResponse(
+            text=text, normalized=norm, lang=lang, translation=translation,
+            voice=None, audio_hash=None, audio_url=None,
+            cached=CachedFlags(translation=trans_cached, tts=False),
+        )
     audio_hash, tts_cached = await tts.synthesize(speak_text, lang, voice)
     return ProcessResponse(
         text=text,
