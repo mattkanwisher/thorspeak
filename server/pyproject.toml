@@ -1,0 +1,58 @@
+[project]
+name = "thorspeak-server"
+version = "0.1.0"
+description = "ThorSpeak server: OCR, translation, TTS and flashcards for the AYN Thor companion app"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "manga-ocr>=0.1.14",
+    "edge-tts>=6.1",
+    "anthropic>=0.40",
+    "genanki>=0.13.1",
+    "pydantic-settings>=2.4",
+]
+
+# torch must be declared here (not left transitive via manga-ocr) so the index
+# pins below apply — otherwise uv pulls CUDA torch from PyPI (~4 GB of nvidia libs).
+# Plain `uv sync` installs CPU torch. For ROCm (~6 GB, AMD GPUs):
+#   uv sync --no-group cpu --group rocm
+[dependency-groups]
+dev = ["pytest>=8", "pillow>=10"]
+cpu = ["torch>=2"]
+# triton-rocm is declared explicitly: it only exists on the pytorch-rocm index,
+# and uv won't search explicit indexes for transitive deps.
+rocm = ["torch>=2.13,<2.14", "triton-rocm"]
+
+[tool.uv]
+# Server only targets Linux x86_64; without this, universal resolution drags in
+# PyPI (CUDA) torch for the mac/windows splits and old torch for the rocm group.
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+default-groups = ["dev", "cpu"]
+conflicts = [[{ group = "cpu" }, { group = "rocm" }]]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", group = "cpu" },
+    { index = "pytorch-rocm", group = "rocm" },
+]
+triton-rocm = [{ index = "pytorch-rocm", group = "rocm" }]
+torchvision = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://download.pytorch.org/whl/rocm7.1"
+explicit = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["thorspeak_server"]

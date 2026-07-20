@@ -1,0 +1,15 @@
+# User unit. Install with:
+#   mkdir -p ~/.config/systemd/user
+#   cp thorspeak-server.service ~/.config/systemd/user/
+#   systemctl --user enable --now thorspeak-server
+[Unit]
+Description=ThorSpeak OCR/TTS server
+After=network-online.target
+
+[Service]
+ExecStart=%h/projects/me/thorspeak/server/run.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
