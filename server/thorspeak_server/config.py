@@ -22,6 +22,17 @@ class Settings(BaseSettings):
     # "ja:voice,en:voice,th:voice" overrides for the built-in defaults
     default_voices: str = Field(default="", alias="THORSPEAK_DEFAULT_VOICES")
     claude_model: str = Field(default="claude-haiku-4-5", alias="THORSPEAK_CLAUDE_MODEL")
+    # "auto" | "anthropic" | "openrouter" — auto picks whichever key is set,
+    # preferring anthropic. See llm.py.
+    llm_provider: str = Field(default="auto", alias="THORSPEAK_LLM_PROVIDER")
+    openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
+    openrouter_model: str = Field(
+        default="anthropic/claude-haiku-4.5", alias="THORSPEAK_OPENROUTER_MODEL"
+    )
+    # Any OpenAI-compatible endpoint works here (Ollama: http://localhost:11434/v1)
+    openrouter_base_url: str = Field(
+        default="https://openrouter.ai/api/v1", alias="THORSPEAK_OPENROUTER_BASE_URL"
+    )
 
     @property
     def audio_dir(self) -> Path:

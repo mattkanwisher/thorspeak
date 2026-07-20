@@ -28,7 +28,7 @@ the manga-ocr model (~450 MB) from HuggingFace.
 
 ```sh
 cd server
-cp .env.example .env        # put your ANTHROPIC_API_KEY here
+cp .env.example .env        # set ANTHROPIC_API_KEY or OPENROUTER_API_KEY
 uv sync                     # CPU torch by default (safe on any box, no CUDA)
 ./run.sh                    # serves on 0.0.0.0:8737
 ```

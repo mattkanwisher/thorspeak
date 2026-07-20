@@ -10,6 +10,7 @@ dependencies = [
     "manga-ocr>=0.1.14",
     "edge-tts>=6.1",
     "anthropic>=0.40",
+    "httpx>=0.27",
     "genanki>=0.13.1",
     "pydantic-settings>=2.4",
 ]
