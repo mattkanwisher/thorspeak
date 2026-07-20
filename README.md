@@ -43,7 +43,21 @@ uv sync --no-group cpu --group rocm   # ~6 GB download, ~12 GB installed
 Don't run `uv sync --no-default-groups` — with neither torch group selected,
 the resolver falls back to the CUDA build from PyPI.
 
-Optional systemd user unit: see `server/thorspeak-server.service`.
+Run as a service (auto-start on boot, auto-restart):
+
+```sh
+mkdir -p ~/.config/systemd/user
+cp server/thorspeak-server.service ~/.config/systemd/user/
+systemctl --user enable --now thorspeak-server
+loginctl enable-linger            # start at boot without logging in
+```
+
+Reach it from anywhere on your tailnet (the app's server URL then works
+away from home, with TLS):
+
+```sh
+tailscale serve --bg 8737         # -> https://<machine>.<tailnet>.ts.net/
+```
 
 Smoke test:
 
