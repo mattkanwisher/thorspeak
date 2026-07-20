@@ -101,8 +101,9 @@ class CaptureService : Service() {
             return
         }
 
+        var gateText: String? = null
         if (!pixelOnly) {
-            val gateText = MlKitReader.normalizeLocal(mlKit.read(crop))
+            gateText = MlKitReader.normalizeLocal(mlKit.read(crop))
             if (gateText.isBlank()) {
                 SessionState.setGateLog("dropped: ML Kit saw no text")
                 return
@@ -124,7 +125,16 @@ class CaptureService : Service() {
                 ApiClient.jpegPart(jpeg),
                 ApiClient.textPart(lang),
                 voice?.let { ApiClient.textPart(it) },
+                gateText?.let { ApiClient.textPart(it) },
             )
+            val dropped = resp.droppedReason
+            if (dropped != null) {
+                // Server refused to speak (hallucinated OCR / nothing speakable):
+                // keep the last real line on screen instead of showing garbage.
+                SessionState.setGateLog("server dropped: $dropped")
+                SessionState.setStatus(SessionStatus.Capturing)
+                return
+            }
             SessionState.setResponse(resp)
             val hash = resp.audioHash
             val url = resp.audioUrl

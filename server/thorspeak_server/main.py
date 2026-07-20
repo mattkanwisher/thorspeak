@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from . import __version__
 from .config import LANGS, settings
 from .db import Database
-from .normalize import has_speakable, normalize
+from .normalize import char_overlap, has_speakable, normalize
 from .ocr import ocr
 from . import anki, translate as tr, tts
 from .lookup import LookupResult, lookup
@@ -72,6 +72,9 @@ class ProcessResponse(BaseModel):
     audio_hash: str | None
     audio_url: str | None
     cached: CachedFlags
+    # set when the server chose not to speak (nothing speakable, or the
+    # OCR text failed the hallucination guard against the app's gate text)
+    dropped_reason: str | None = None
 
 
 # --- helpers --------------------------------------------------------------
@@ -93,6 +96,7 @@ async def _speak_pipeline(text: str, lang: str, voice: str | None) -> ProcessRes
             text=text, normalized=norm, lang=lang, translation=None, voice=None,
             audio_hash=None, audio_url=None,
             cached=CachedFlags(translation=False, tts=False),
+            dropped_reason="nothing speakable",
         )
 
     translation, trans_cached = (None, False)
@@ -107,6 +111,7 @@ async def _speak_pipeline(text: str, lang: str, voice: str | None) -> ProcessRes
             text=text, normalized=norm, lang=lang, translation=translation,
             voice=None, audio_hash=None, audio_url=None,
             cached=CachedFlags(translation=trans_cached, tts=False),
+            dropped_reason="nothing speakable",
         )
     audio_hash, tts_cached = await tts.synthesize(speak_text, lang, voice)
     return ProcessResponse(
@@ -143,11 +148,30 @@ async def process(
     image: UploadFile = File(...),
     lang: str = Form(...),
     voice: str | None = Form(None),
+    gate_text: str | None = Form(None),
 ):
     if not ocr.loaded:
         raise HTTPException(503, "OCR model not loaded")
     data = await image.read()
     text = await anyio.to_thread.run_sync(ocr.read, data)
+
+    # Hallucination guard: manga-ocr invents dialogue on menu/no-text frames.
+    # The app sends what its on-device ML Kit pass saw; genuine OCR shares
+    # most characters with it, inventions share almost none.
+    if gate_text:
+        overlap = char_overlap(normalize(text), normalize(gate_text))
+        if overlap < settings.gate_overlap_min:
+            log.warning(
+                "hallucination guard dropped %r (gate %r, overlap %.2f)",
+                text[:40], gate_text[:40], overlap,
+            )
+            return ProcessResponse(
+                text=text, normalized=normalize(text), lang=lang,
+                translation=None, voice=None, audio_hash=None, audio_url=None,
+                cached=CachedFlags(translation=False, tts=False),
+                dropped_reason=f"ocr/gate mismatch ({overlap:.0%} overlap)",
+            )
+
     return await _speak_pipeline(text, lang, voice)
 
 

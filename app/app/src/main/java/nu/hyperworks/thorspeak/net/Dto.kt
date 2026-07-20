@@ -16,6 +16,7 @@ data class ProcessResponse(
     @SerialName("audio_hash") val audioHash: String? = null,
     @SerialName("audio_url") val audioUrl: String? = null,
     val cached: CachedFlags,
+    @SerialName("dropped_reason") val droppedReason: String? = null,
 )
 
 @Serializable

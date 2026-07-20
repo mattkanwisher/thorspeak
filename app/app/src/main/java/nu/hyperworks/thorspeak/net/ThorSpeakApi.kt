@@ -30,6 +30,7 @@ interface ThorSpeakApi {
         @Part image: MultipartBody.Part,
         @Part("lang") lang: RequestBody,
         @Part("voice") voice: RequestBody?,
+        @Part("gate_text") gateText: RequestBody?,
     ): ProcessResponse
 
     @POST("speak")

@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # "auto" | "anthropic" | "openrouter" — auto picks whichever key is set,
     # preferring anthropic. See llm.py.
     llm_provider: str = Field(default="auto", alias="THORSPEAK_LLM_PROVIDER")
+    # Min character overlap between manga-ocr output and the app's ML Kit
+    # gate text; below this the frame is treated as an OCR hallucination.
+    gate_overlap_min: float = Field(default=0.3, alias="THORSPEAK_GATE_OVERLAP_MIN")
     openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
     openrouter_model: str = Field(
         default="anthropic/claude-haiku-4.5", alias="THORSPEAK_OPENROUTER_MODEL"

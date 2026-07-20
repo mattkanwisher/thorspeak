@@ -1,6 +1,6 @@
 [project]
 name = "thorspeak-server"
-version = "0.1.0"
+version = "0.1.1"
 description = "ThorSpeak server: OCR, translation, TTS and flashcards for the AYN Thor companion app"
 requires-python = ">=3.11"
 dependencies = [

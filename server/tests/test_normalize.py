@@ -34,3 +34,21 @@ def test_has_speakable():
     assert not has_speakable("……")
     assert not has_speakable("!?、。・")
     assert not has_speakable("")
+
+
+def test_char_overlap_hallucination_guard():
+    from thorspeak_server.normalize import char_overlap
+
+    # real capture: manga-ocr and ML Kit read (mostly) the same dialogue,
+    # even with a couple of ML Kit misreads on the pixel font
+    ocr = "ゆうしゃよ、まおうをたおしてくれ!"
+    mlkit_imperfect = "ゆうしゃよ まおうをたむしてくれ"
+    assert char_overlap(ocr, mlkit_imperfect) > 0.7
+
+    # actual hallucinations manga-ocr produced on a settings-menu frame
+    menu = "メッセージそくどウィンドウカラーおわりはやいふつうおそい"
+    assert char_overlap("そのため、", menu) < 0.3
+    assert char_overlap("それでも、これまでのお客様においては、", menu) < 0.3
+
+    assert char_overlap("", menu) == 0.0
+    assert char_overlap("こんにちは", "こんにちは") == 1.0

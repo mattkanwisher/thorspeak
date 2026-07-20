@@ -5,6 +5,7 @@ server returns verbatim. Changing this module invalidates existing caches.
 """
 
 import hashlib
+from collections import Counter
 import re
 import unicodedata
 
@@ -22,6 +23,21 @@ def audio_key(text: str, lang: str, voice: str) -> str:
 
 def text_key(text: str, target_lang: str) -> str:
     return hashlib.sha256(f"{normalize(text)}|{target_lang}".encode()).hexdigest()
+
+
+def char_overlap(text: str, reference: str) -> float:
+    """Fraction of text's letters/digits that also appear in reference (multiset).
+
+    Used to catch manga-ocr hallucinations: on menus/no-dialogue frames it
+    invents plausible lines instead of returning nothing. Real OCR output
+    shares most characters with what on-device ML Kit saw; inventions don't.
+    """
+    a = Counter(c for c in text if c.isalnum())
+    b = Counter(c for c in reference if c.isalnum())
+    total = sum(a.values())
+    if not total:
+        return 0.0
+    return sum((a & b).values()) / total
 
 
 def has_speakable(text: str) -> bool:
