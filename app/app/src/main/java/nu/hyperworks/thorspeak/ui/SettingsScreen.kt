@@ -26,9 +26,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import nu.hyperworks.thorspeak.BuildConfig
 import nu.hyperworks.thorspeak.ThorSpeakApp
 import nu.hyperworks.thorspeak.data.MainViewModel
+import nu.hyperworks.thorspeak.net.UpdateManager
 
 @Composable
 fun SettingsScreen(
@@ -138,5 +141,41 @@ fun SettingsScreen(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        Text("App updates", style = MaterialTheme.typography.titleSmall)
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val updater = remember { UpdateManager(app.apiClient.http) }
+        var updateStatus by remember { mutableStateOf<String?>(null) }
+        var updating by remember { mutableStateOf(false) }
+        OutlinedButton(
+            enabled = !updating,
+            onClick = {
+                updating = true
+                updateStatus = "Checking GitHub…"
+                scope.launch(Dispatchers.IO) {
+                    try {
+                        val release = updater.latestRelease()
+                        if (!updater.isNewer(release.tag, BuildConfig.VERSION_NAME)) {
+                            updateStatus = "Up to date (v${BuildConfig.VERSION_NAME})"
+                        } else {
+                            updateStatus = "Downloading ${release.tag}… 0%"
+                            val apk = updater.downloadApk(release, context) { pct ->
+                                updateStatus = "Downloading ${release.tag}… $pct%"
+                            }
+                            updateStatus = "Installing ${release.tag} — confirm the system prompt"
+                            updater.install(context, apk)
+                        }
+                    } catch (e: Exception) {
+                        updateStatus = "Update failed: ${e.message}"
+                    } finally {
+                        updating = false
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Check for updates (installed: v${BuildConfig.VERSION_NAME})") }
+        updateStatus?.let {
+            Text(it, style = MaterialTheme.typography.labelMedium)
+        }
     }
 }

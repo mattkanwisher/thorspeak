@@ -32,13 +32,22 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug
+      - name: Restore signing keystore
+        if: github.event_name != 'pull_request'
+        run: echo "$ANDROID_KEYSTORE_B64" | base64 -d > /tmp/thorspeak-release.jks
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+      - name: Build release APK
+        run: ./gradlew :app:assembleRelease
         working-directory: app
+        env:
+          THORSPEAK_KEYSTORE: /tmp/thorspeak-release.jks
+          THORSPEAK_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          THORSPEAK_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       - uses: actions/upload-artifact@v4
         with:
-          name: thorspeak-debug-apk
-          path: app/app/build/outputs/apk/debug/app-debug.apk
+          name: thorspeak-apk
+          path: app/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
   release:
@@ -50,9 +59,9 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: thorspeak-debug-apk
+          name: thorspeak-apk
       - name: Rename APK
-        run: mv app-debug.apk thorspeak-${{ github.ref_name }}.apk
+        run: mv app-release.apk thorspeak-${{ github.ref_name }}.apk
       - uses: softprops/action-gh-release@v2
         with:
           files: thorspeak-*.apk

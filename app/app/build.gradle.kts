@@ -13,13 +13,30 @@ android {
         applicationId = "nu.hyperworks.thorspeak"
         minSdk = 33
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
+    }
+
+    // Consistent signing across machines/CI so in-app updates install over
+    // the previous version. Path+passwords come from env (CI secrets).
+    val ksPath = System.getenv("THORSPEAK_KEYSTORE")
+    if (ksPath != null && file(ksPath).exists()) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("THORSPEAK_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("THORSPEAK_KEY_ALIAS")
+                keyPassword = System.getenv("THORSPEAK_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (ksPath != null && file(ksPath).exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
@@ -31,6 +48,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
